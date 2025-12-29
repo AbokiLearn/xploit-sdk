@@ -1,0 +1,62 @@
+name: Publish Package to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  pypi-release:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Checkout
+        id: checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        id: setup_uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Build package
+        id: build
+        run: uvx --from build pyproject-build --installer uv
+
+      - name: Publish to pypi
+        id: publish
+        run: uv publish
+
+      - name: Notify Discord (success)
+        if: ${{ success() }}
+        continue-on-error: true
+        uses: kabilan108/actions/discord-notify@v1
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          level: info
+          title: Publish succeeded
+          description: |
+            Repo: `${{ github.repository }}`
+            Ref: `${{ github.ref_name }}`
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Notify Discord (failure)
+        if: ${{ failure() }}
+        continue-on-error: true
+        uses: kabilan108/actions/discord-notify@v1
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK }}
+          level: error
+          title: Publish failed
+          description: |
+            Repo: `${{ github.repository }}`
+            Ref: `${{ github.ref_name }}`
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            Step outcomes:
+            - checkout: `${{ steps.checkout.outcome }}`
+            - setup_uv: `${{ steps.setup_uv.outcome }}`
+            - build: `${{ steps.build.outcome }}`
+            - publish: `${{ steps.publish.outcome }}`
